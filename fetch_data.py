@@ -1,4 +1,5 @@
 import pandas as pd
+import requests
 import json
 import time
 import os
@@ -158,3 +159,21 @@ def get_all_player_data():
     future_gws = get_future_gameweeks(all_player_data, fixtures)
 
     return pd.concat([all_player_data, future_gws])
+
+def fetch_fpl_team(team_id):
+    """Fetch an FPL team's starting 11 and bench players given a team ID."""
+
+    url = f"https://fantasy.premierleague.com/api/my-team/{team_id}/"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        team_data = response.json()
+        starting_11 = [player['element'] for player in team_data['picks'] if player['position'] <= 11]
+        bench = [player['element'] for player in team_data['picks'] if player['position'] > 11]
+        return {
+            'starting_11': starting_11,
+            'bench': bench
+        }
+    else:
+        print(f"Error {response.status_code}: {response.text}")
+        return None
