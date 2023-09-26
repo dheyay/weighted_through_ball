@@ -19,15 +19,14 @@ def generate_difficulty_feature(df):
     return pd.merge(df, avg_against_diff, on=['name', 'difficulty_category'], how='left')
 
 
-# TODO: Re-write to update
-# def get_avg_ppg(df):
-#     """Generate a feature showcasing player average point per game for the specified season so far"""
-#     df['games_played'] = df.groupby(['name', 'season'])['minutes'].apply(lambda x: (x > 0).cumsum())
-#     df['cumulative_points'] = df.groupby(['name', 'season'])['total_points'].cumsum()
-#     df['avg_ppg'] = df['cumulative_points'] / df['games_played']
-#     df['avg_ppg'].replace(np.inf, np.nan, inplace=True)
-#     df.drop(columns=['cumulative_points', 'games_played'], inplace=True)
-#     return df
+def get_avg_ppg(df):
+    """Generate a feature showcasing player average point per game for the season upto current gameweek"""
+    df['total_points_upto_gw'] = df.groupby(['name', 'season'])['total_points'].apply(pd.Series.cumsum)
+    df['total_points_upto_gw'] = df['total_points_upto_gw'] - df['total_points']
+    df['avg_points_upto_gw'] = df.apply(lambda row: row['total_points_upto_gw'] / (row['gameweek'] - 1) 
+                                        if row['gameweek'] > 1 else row['total_points'], axis=1)
+    df.drop(columns=['total_points_upto_gw'], inplace=True)
+    return df
 
 def get_rolling_avg_mins(df, windows=[1, 2, 3, 4, 5]):
     """Generate avg minutes in previous x games feature"""

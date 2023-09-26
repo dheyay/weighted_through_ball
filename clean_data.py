@@ -44,7 +44,7 @@ def standardize_element_ids(df):
     return df
 
 def drop_cols(drop_cols, df):
-    return df.drop(drop_cols, inplace=True)
+    return df.drop(drop_cols, axis=1)
 
 def clean_player_data(all_player_df, fixtures_data):
     all_player_df = clean_2019_data(all_player_df, fixtures_data)

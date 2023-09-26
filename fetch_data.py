@@ -150,12 +150,18 @@ def get_future_gameweeks(player_data_df, season='2023-24', gws_in_future = 1):
                 'selected', 'own_goals', 'score', 'opponent_score']
     next_gw[cols_to_nan] = np.nan
 
-    prev_gw_data = player_data_df[(player_data_df['season'] == '2023-24') & (player_data_df['gameweek'] == last_gameweek)]
+    # TODO: Fix player minutes feature as some players might have been rested. Start by giving 90 mins to everyone.
+
     # Assign future players minutes based on their last game
-    minutes_condition = prev_gw_data.set_index('name')['minutes'].apply(lambda x: 90 if x > 50 else 60).to_dict()
-    next_gw.loc[(next_gw['season'] == '2023-24')  & (all_fixture_df['event'] > last_gameweek) 
-                                   & (all_fixture_df['event'] <= last_gameweek+gws_in_future) & 
-                       (next_gw['name'].isin(minutes_condition.keys())), 'minutes'] = player_data_df['name'].map(minutes_condition)
+    # prev_gw_data = player_data_df[(player_data_df['season'] == '2023-24') & (player_data_df['gameweek'] == last_gameweek)]
+    # minutes_condition = prev_gw_data.set_index('name')['minutes'].apply(lambda x: 90 if x > 50 else 60).to_dict()
+    #minutes_condition = prev_gw_data.set_index('name')['minutes'].apply(lambda x: 90 if x > 50 else 60).to_dict()
+    #next_gw.loc[(next_gw['season'] == '2023-24')  & (all_fixture_df['event'] > last_gameweek+1) & 
+    #                   (next_gw['name'].isin(minutes_condition.keys())), 'minutes'] = player_data_df['name'].map(minutes_condition)
+    
+    # Basic feature for now
+    next_gw['minutes'] = 90
+    
     return next_gw
 
 def get_all_player_data():
