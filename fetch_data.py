@@ -20,7 +20,7 @@ def get_gws():
                     df['gameweek'] = gw
                     all_dataframes.append(df)
                 except Exception as ex:
-                    print(f"Error occurred: {ex}")
+                    print(f"Gameweek {gw} for season {season} hasn't been played yet.")
                     break
         else:
             for gw in range(1, 48):
@@ -37,7 +37,15 @@ def get_gws():
                 
 
 def add_opponent_team_info(player_data_df):
-    df_team = pd.read_csv(f'https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/master_team_list.csv')
+    seasons = ['2021-22', '2022-23', '2019-20', '2023-24', '2020-21']
+    all_teams_df = []
+    for season in seasons:
+        df_team = pd.read_csv(f'https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/{season}/teams.csv').assign(season=season)
+        df_team.rename({'id':'team', 'name':'team_name'}, axis=1,inplace=True)
+        all_teams_df.append(df_team[['season', 'team', 'team_name']])
+        
+    df_team = pd.concat(all_teams_df)
+    df_team.reset_index(inplace=True, drop=True)
     df_team.rename({'team':'team_drop'}, axis=1,inplace=True)
     player_data_df = pd.merge(player_data_df, df_team[['season', 'team_drop', 'team_name']], 
                            left_on=['season', 'opponent_team'], right_on=['season', 'team_drop'], how='left')
@@ -46,7 +54,7 @@ def add_opponent_team_info(player_data_df):
     # Drop features not required for initial analysis -- Maybe do in another function
     drop_features = ['xP', 'expected_assists', 'expected_goals', 'expected_goals_conceded', 
                  'expected_goal_involvements', 'kickoff_time', 'team_drop']
-    player_data_df.drop(drop_features, inplace=True)
+    player_data_df.drop(columns=drop_features, axis=1, inplace=True)
 
     return player_data_df
 
@@ -106,15 +114,22 @@ def get_all_fixture_df():
     ).reset_index()
 
 
-def get_future_gameweeks(player_data_df, all_fixture_df, season='2023-24'):
+def get_future_gameweeks(player_data_df, season='2023-24', gws_in_future = 1):
+    all_fixture_df = get_all_fixture_df()
+    
     # Generate next gameweek samples
     last_gameweek = player_data_df.where(player_data_df['season'] == season)['gameweek'].max()
     last_gameweek_players = player_data_df[(player_data_df['season'] == season) & (player_data_df['gameweek'] == last_gameweek)]
-    filtered_data = all_fixture_df[(all_fixture_df['season'] == season) & (all_fixture_df['event'] == last_gameweek+1)]
+    filtered_data = all_fixture_df[(all_fixture_df['season'] == season) 
+                                   & (all_fixture_df['event'] > last_gameweek) 
+                                   & (all_fixture_df['event'] <= last_gameweek+gws_in_future)]
+    
+    # TODO: Fix to create as many copies of the players as gws_in_the future
+    # TODO: Set the players gameweeks in each copy accordingly, maybe try a for loop or lambda function
     next_gw_players = last_gameweek_players.copy()
-
-    # Update the rest of the information based on the next fixture for the team
     next_gw_players['gameweek'] = last_gameweek + 1
+    
+    # Update the rest of the information based on the next fixture for the team
     drop_cols = ['difficulty', 'opponent_difficulty', 'opponent_team_name', 'opponent_team']
     next_gw_players.drop(columns=drop_cols, inplace=True)
 
@@ -133,32 +148,30 @@ def get_future_gameweeks(player_data_df, all_fixture_df, season='2023-24'):
                 'penalties_saved', 'yellow_cards', 'red_cards', 'saves', 'bonus', 'bps', 
                 'total_points', 'minutes', 'transfers_balance', 'transfers_in', 'transfers_out',
                 'selected', 'own_goals', 'score', 'opponent_score']
-
     next_gw[cols_to_nan] = np.nan
-    player_data_df = pd.concat([player_data_df, next_gw])
 
     prev_gw_data = player_data_df[(player_data_df['season'] == '2023-24') & (player_data_df['gameweek'] == last_gameweek)]
     # Assign future players minutes based on their last game
     minutes_condition = prev_gw_data.set_index('name')['minutes'].apply(lambda x: 90 if x > 50 else 60).to_dict()
-    player_data_df.loc[(player_data_df['season'] == '2023-24') & (player_data_df['gameweek'] == last_gameweek+1) & 
-                       (player_data_df['name'].isin(minutes_condition.keys())), 'minutes'] = player_data_df['name'].map(minutes_condition)
-    return player_data_df
+    next_gw.loc[(next_gw['season'] == '2023-24')  & (all_fixture_df['event'] > last_gameweek) 
+                                   & (all_fixture_df['event'] <= last_gameweek+gws_in_future) & 
+                       (next_gw['name'].isin(minutes_condition.keys())), 'minutes'] = player_data_df['name'].map(minutes_condition)
+    return next_gw
 
 def get_all_player_data():
     """Merges gameweek data with fixture data and future gameweek to create a master dataframe with all player data"""
     player_gameweeks = get_gws()
     fixtures = get_all_fixture_df()
+
     all_player_data = pd.merge(player_gameweeks, 
                                  fixtures[['season', 'id', 'team_name', 'difficulty', 'opponent_difficulty', 'score', 'opponent_score']], 
                                  left_on=['season', 'fixture', 'team'], 
                                  right_on=['season', 'id', 'team_name'], 
                                  how='left')
-
     # Dropping redundant columns
     all_player_data.drop(columns=['id', 'team_name'], inplace=True)
-    future_gws = get_future_gameweeks(all_player_data, fixtures)
-
-    return pd.concat([all_player_data, future_gws])
+    all_player_data = add_opponent_team_info(all_player_data)
+    return all_player_data
 
 def fetch_fpl_team(team_id):
     """Fetch an FPL team's starting 11 and bench players given a team ID."""

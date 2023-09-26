@@ -2,7 +2,6 @@ import pandas as pd
 
 def clean_2019_data(player_data_df, fixture_data):
     """Clean the player data for the 2019-20 season by mapping missing data using the fixture data."""
-
     fixtures_2019_20_data = fixture_data[fixture_data['season'] == '2019-20']
     team_mapping = fixtures_2019_20_data.set_index('id').apply(lambda row: row['team_name'] if row['was_home'] else row['opponent_name'], axis=1).to_dict()
     difficulty_mapping = fixtures_2019_20_data.set_index('id')['difficulty'].to_dict()
@@ -23,17 +22,17 @@ def clean_2019_data(player_data_df, fixture_data):
 
 def fill_player_positions(player_data_df):
     """Fill missing player positions for the 2019-20 dataset"""
-
     player_data_df['position'].fillna('UNK', inplace=True)
     player_data_df.loc[player_data_df['position'] == 'GKP', 'position'] = 'GK'
-
     players_2019_20 = set(player_data_df[player_data_df['season'] == '2019-20']['name'].unique())
     players_other_seasons = set(player_data_df[player_data_df['season'] != '2019-20']['name'].unique())
     players_both_seasons = players_2019_20.intersection(players_other_seasons)
-
-    # Extracting the latest position for the players who played in both the 2019-20 season and at least one other season
     latest_positions = player_data_df[player_data_df['name'].isin(players_both_seasons)].groupby('name')['position'].last().to_dict()
-    player_data_df.loc[(player_data_df['name'].isin(players_both_seasons) & (player_data_df['season'] == '2019-20')), 'position'] = player_data_df['name'].map(latest_positions)
+    player_data_df.loc[(player_data_df['name'].isin(players_both_seasons) & (player_data_df['season'] == '2019-20')),
+                        'position'] = player_data_df['name'].map(latest_positions)
+    
+    # Drop players with UNK position as they are not currently playing
+    player_data_df = player_data_df[player_data_df['position'] != 'UNK']
     return player_data_df
 
 def standardize_element_ids(df):
