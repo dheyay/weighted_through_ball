@@ -53,7 +53,7 @@ def add_opponent_team_info(player_data_df):
 
     # Drop features not required for initial analysis -- Maybe do in another function
     drop_features = ['xP', 'expected_assists', 'expected_goals', 'expected_goals_conceded', 
-                 'expected_goal_involvements', 'kickoff_time', 'team_drop']
+                 'expected_goal_involvements', 'team_drop']
     player_data_df.drop(columns=drop_features, axis=1, inplace=True)
 
     return player_data_df
@@ -130,13 +130,15 @@ def get_future_gameweeks(player_data_df, season='2023-24', gws_in_future = 1):
     next_gw_players['gameweek'] = last_gameweek + 1
     
     # Update the rest of the information based on the next fixture for the team
-    drop_cols = ['difficulty', 'opponent_difficulty', 'opponent_team_name', 'opponent_team']
+    drop_cols = ['difficulty', 'opponent_difficulty', 'opponent_team_name', 'opponent_team', 'kickoff_time']
     next_gw_players.drop(columns=drop_cols, inplace=True)
 
-    next_gw = next_gw_players.merge(filtered_data[['event', 'team_name', 'id', 'opponent', 'difficulty', 'opponent_difficulty', 'opponent_name']],
+    next_gw = next_gw_players.merge(filtered_data[['event', 'team_name', 'id', 'kickoff_time', 'opponent', 'difficulty', 'opponent_difficulty', 'opponent_name']],
                                                 left_on=['team', 'gameweek'],
                                                 right_on=['team_name', 'event'],
                                                 how='left')
+    # Convert kickoff_time to pd.datetime
+    next_gw['kickoff_time'] = pd.to_datetime(next_gw['kickoff_time'])
     next_gw['gameweek'] = next_gw['event']
     next_gw['opponent_team'] = next_gw['opponent']
     next_gw['opponent_team_name'] = next_gw['opponent_name']
@@ -151,7 +153,6 @@ def get_future_gameweeks(player_data_df, season='2023-24', gws_in_future = 1):
     next_gw[cols_to_nan] = np.nan
 
     # TODO: Fix player minutes feature as some players might have been rested. Start by giving 90 mins to everyone.
-
     # Assign future players minutes based on their last game
     # prev_gw_data = player_data_df[(player_data_df['season'] == '2023-24') & (player_data_df['gameweek'] == last_gameweek)]
     # minutes_condition = prev_gw_data.set_index('name')['minutes'].apply(lambda x: 90 if x > 50 else 60).to_dict()
@@ -170,10 +171,16 @@ def get_all_player_data():
     fixtures = get_all_fixture_df()
 
     all_player_data = pd.merge(player_gameweeks, 
-                                 fixtures[['season', 'id', 'team_name', 'difficulty', 'opponent_difficulty', 'score', 'opponent_score']], 
+                                 fixtures[['season', 'id', 'team_name', 'kickoff_time', 'difficulty', 'opponent_difficulty', 'score', 'opponent_score']], 
                                  left_on=['season', 'fixture', 'team'], 
                                  right_on=['season', 'id', 'team_name'], 
                                  how='left')
+    
+    # Convert kickoff_time to pd.datetime
+    all_player_data.drop(['kickoff_time_x'], axis=1, inplace=True)
+    all_player_data.rename(columns={"kickoff_time_y":"kickoff_time"}, inplace=True)
+    all_player_data['kickoff_time'] = pd.to_datetime(all_player_data['kickoff_time'])
+    
     # Dropping redundant columns
     all_player_data.drop(columns=['id', 'team_name'], inplace=True)
     all_player_data = add_opponent_team_info(all_player_data)
@@ -181,7 +188,6 @@ def get_all_player_data():
 
 def fetch_fpl_team(team_id):
     """Fetch an FPL team's starting 11 and bench players given a team ID."""
-
     url = f"https://fantasy.premierleague.com/api/my-team/{team_id}/"
     response = requests.get(url)
 

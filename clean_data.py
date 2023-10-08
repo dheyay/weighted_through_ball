@@ -1,4 +1,6 @@
 import pandas as pd
+from difflib import SequenceMatcher
+
 
 def clean_2019_data(player_data_df, fixture_data):
     """Clean the player data for the 2019-20 season by mapping missing data using the fixture data."""
@@ -35,13 +37,31 @@ def fill_player_positions(player_data_df):
     player_data_df = player_data_df[player_data_df['position'] != 'UNK']
     return player_data_df
 
-def standardize_element_ids(df):
-    """Standardize element id for players using their latest element id"""
-    latest_seasons = df.groupby('name')['season'].transform(max)
-    latest_players_df = df[df['season'] == latest_seasons]
-    name_to_latest_element = dict(zip(latest_players_df['name'], latest_players_df['element']))
-    df['element'] = df['name'].map(name_to_latest_element)
+
+def update_player_names(df):
+    """Standardize name and element mapping for players based on their latest name, element"""
+    def similar(a, b):
+        return SequenceMatcher(None, a, b).ratio()
+
+    df = df.sort_values(by=['season', 'gameweek'], ascending=[False, False]).reset_index(drop=True)
+    name_element_mapping = {}
+
+    for i, row in df.iterrows():
+        name = row['name']
+        element = row['element']
+        if name in name_element_mapping:
+            continue
+        for old_name in name_element_mapping:
+            if similar(name, old_name) > 0.9:  # using a threshold of 0.9 for similarity
+                name_element_mapping[old_name] = (name, element)
+                break
+        else:
+            name_element_mapping[name] = (name, element)
+    df['name'] = df['name'].map(lambda x: name_element_mapping.get(x, (x, None))[0])
+    df['element'] = df['name'].map(lambda x: name_element_mapping.get(x, (None, x))[1])
+
     return df
+
 
 def drop_cols(drop_cols, df):
     return df.drop(drop_cols, axis=1)
@@ -49,5 +69,5 @@ def drop_cols(drop_cols, df):
 def clean_player_data(all_player_df, fixtures_data):
     all_player_df = clean_2019_data(all_player_df, fixtures_data)
     all_player_df = fill_player_positions(all_player_df)
-    all_player_df = standardize_element_ids(all_player_df)
+    all_player_df = update_player_names(all_player_df)
     return all_player_df
