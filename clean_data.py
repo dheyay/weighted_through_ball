@@ -60,8 +60,15 @@ def update_player_names(df):
     df['name'] = df['name'].map(lambda x: name_element_mapping.get(x, (x, None))[0])
     df['element'] = df['name'].map(lambda x: name_element_mapping.get(x, (None, x))[1])
 
+    df = map_id_name(df)
     return df
 
+def map_id_name(player_df):
+    """Maps names to a unique id to keep data consistent"""
+    names = player_df['name'].unique()
+    id_map = {name: idx for idx, name in enumerate(names)}
+    player_df['element'] = player_df['name'].map(id_map)
+    return player_df
 
 def drop_cols(drop_cols, df):
     return df.drop(drop_cols, axis=1)
