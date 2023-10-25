@@ -1,6 +1,7 @@
 import pandas as pd
-import requests
 import numpy as np
+from datetime import datetime
+import pytz
 
 
 def get_gws():
@@ -109,62 +110,53 @@ def get_all_fixture_df():
         ]
     ).reset_index()
 
+def get_future_gameweeks(player_data, fixture_data, num_gameweeks=1):
+    current_time = datetime.utcnow()
+    current_time = current_time.replace(tzinfo=pytz.UTC)
+    fixture_data['kickoff_time'] = pd.to_datetime(fixture_data['kickoff_time'])
+    futr_fxtr = fixture_data[fixture_data['kickoff_time'] > current_time]
 
-def get_future_gameweeks(player_data_df, season='2023-24', gws_in_future = 1):
-    all_fixture_df = get_all_fixture_df()
-    
-    # Generate next gameweek samples
-    last_gameweek = player_data_df.where(player_data_df['season'] == season)['gameweek'].max()
-    last_gameweek_players = player_data_df[(player_data_df['season'] == season) & (player_data_df['gameweek'] == last_gameweek)]
-    filtered_data = all_fixture_df[(all_fixture_df['season'] == season) 
-                                   & (all_fixture_df['event'] > last_gameweek) 
-                                   & (all_fixture_df['event'] <= last_gameweek+gws_in_future)]
-    
-    # TODO: Fix to create as many copies of the players as gws_in_the future
-    # TODO: Set the players gameweeks in each copy accordingly, maybe try a for loop or lambda function
-    next_gw_players = last_gameweek_players.copy()
-    next_gw_players['gameweek'] = last_gameweek + 1
-    
-    # Update the rest of the information based on the next fixture for the team
+    # error handling if gameweek range does not exist
+    next_gameweeks = sorted(futr_fxtr['event'].unique())[:num_gameweeks]
+    nxt_gw_fxtr = futr_fxtr[futr_fxtr['event'].isin(next_gameweeks)]
+
+    players_played_last_gw = player_data[(player_data['gameweek'] == nxt_gw_fxtr['event'].unique()[0] - 1) & (player_data['season'] == '2023-24')]
+
+    # Duplicate players that were registered per club for the last completed gameweek
+    #   for number of gameweeks we want
+    fut_gw_players = []
+    for gw in next_gameweeks:
+        gw_x_players = players_played_last_gw.copy()
+        gw_x_players['gameweek'] = gw
+        fut_gw_players.append(gw_x_players)
+
+    players_played_last_gw = pd.concat(fut_gw_players)
+
+    # Edit last gw's data to future gameweeks's data
     drop_cols = ['difficulty', 'opponent_difficulty', 'opponent_team_name', 'opponent_team', 'kickoff_time']
-    next_gw_players.drop(columns=drop_cols, inplace=True)
-
-    next_gw = next_gw_players.merge(filtered_data[['event', 'team_name', 'id', 'kickoff_time', 'opponent', 'difficulty', 'opponent_difficulty', 'opponent_name']],
+    players_played_last_gw.drop(columns=drop_cols, inplace=True)
+    players_played_last_gw['minutes'] = players_played_last_gw['minutes'].apply(lambda x: 60 if x <= 60 else 90)
+    next_gw = players_played_last_gw.merge(nxt_gw_fxtr[['event', 'team_name', 'id', 'kickoff_time', 'opponent', 'difficulty', 'opponent_difficulty', 'opponent_name']],
                                                 left_on=['team', 'gameweek'],
                                                 right_on=['team_name', 'event'],
                                                 how='left')
-    # Convert kickoff_time to pd.datetime
     next_gw['kickoff_time'] = pd.to_datetime(next_gw['kickoff_time'])
     next_gw['gameweek'] = next_gw['event']
     next_gw['opponent_team'] = next_gw['opponent']
     next_gw['opponent_team_name'] = next_gw['opponent_name']
     next_gw['fixture'] = next_gw['id']
     next_gw.drop(columns=['event', 'id', 'opponent', 'opponent_name', 'team_name'], inplace=True)
-
-    # Columns to set to NaN since games have not been played yet
     cols_to_nan = ['goals_scored', 'assists', 'clean_sheets', 'goals_conceded', 'penalties_missed',
                 'penalties_saved', 'yellow_cards', 'red_cards', 'saves', 'bonus', 'bps', 
-                'total_points', 'minutes', 'transfers_balance', 'transfers_in', 'transfers_out',
+                'total_points', 'transfers_balance', 'transfers_in', 'transfers_out',
                 'selected', 'own_goals', 'score', 'opponent_score']
     next_gw[cols_to_nan] = np.nan
 
-    # TODO: Fix player minutes feature as some players might have been rested. Start by giving 90 mins to everyone.
-    # Assign future players minutes based on their last game
-    # prev_gw_data = player_data_df[(player_data_df['season'] == '2023-24') & (player_data_df['gameweek'] == last_gameweek)]
-    # minutes_condition = prev_gw_data.set_index('name')['minutes'].apply(lambda x: 90 if x > 50 else 60).to_dict()
-    #minutes_condition = prev_gw_data.set_index('name')['minutes'].apply(lambda x: 90 if x > 50 else 60).to_dict()
-    #next_gw.loc[(next_gw['season'] == '2023-24')  & (all_fixture_df['event'] > last_gameweek+1) & 
-    #                   (next_gw['name'].isin(minutes_condition.keys())), 'minutes'] = player_data_df['name'].map(minutes_condition)
-    
-    # Basic feature for now
-    next_gw['minutes'] = 90
-    
     return next_gw
 
-def get_all_player_data():
+def get_all_player_data(fixtures):
     """Merges gameweek data with fixture data and future gameweek to create a master dataframe with all player data"""
     player_gameweeks = get_gws()
-    fixtures = get_all_fixture_df()
 
     all_player_data = pd.merge(player_gameweeks, 
                                  fixtures[['season', 'id', 'team_name', 'kickoff_time', 'difficulty', 'opponent_difficulty', 'score', 'opponent_score']], 
@@ -181,20 +173,3 @@ def get_all_player_data():
     all_player_data.drop(columns=['id', 'team_name'], inplace=True)
     all_player_data = add_opponent_team_info(all_player_data)
     return all_player_data
-
-def fetch_fpl_team(team_id):
-    """Fetch an FPL team's starting 11 and bench players given a team ID."""
-    url = f"https://fantasy.premierleague.com/api/my-team/{team_id}/"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        team_data = response.json()
-        starting_11 = [player['element'] for player in team_data['picks'] if player['position'] <= 11]
-        bench = [player['element'] for player in team_data['picks'] if player['position'] > 11]
-        return {
-            'starting_11': starting_11,
-            'bench': bench
-        }
-    else:
-        print(f"Error {response.status_code}: {response.text}")
-        return None
