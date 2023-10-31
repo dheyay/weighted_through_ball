@@ -116,11 +116,11 @@ def get_future_gameweeks(player_data, fixture_data, num_gameweeks=1):
     fixture_data['kickoff_time'] = pd.to_datetime(fixture_data['kickoff_time'])
     futr_fxtr = fixture_data[fixture_data['kickoff_time'] > current_time]
 
-    # error handling if gameweek range does not exist
+    # TODO error handling if gameweek range does not exist
     next_gameweeks = sorted(futr_fxtr['event'].unique())[:num_gameweeks]
     nxt_gw_fxtr = futr_fxtr[futr_fxtr['event'].isin(next_gameweeks)]
 
-    players_played_last_gw = player_data[(player_data['gameweek'] == nxt_gw_fxtr['event'].unique()[0] - 1) & (player_data['season'] == '2023-24')]
+    players_played_last_gw = player_data[(player_data['gameweek'] == nxt_gw_fxtr['event'].unique()[0] - 2) & (player_data['season'] == '2023-24')]
 
     # Duplicate players that were registered per club for the last completed gameweek
     #   for number of gameweeks we want

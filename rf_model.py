@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import joblib
 
 
-class rf_model():
+class rf_xp_model():
     def __init__(self, max_depth=20, max_features='auto', min_samples_leaf=2, min_samples_split=2, n_estimators=500):
         self.model = RandomForestRegressor(max_depth=max_depth, max_features=max_features, 
                                            min_samples_leaf=min_samples_leaf, min_samples_split=min_samples_split, 
@@ -23,7 +23,7 @@ class rf_model():
         X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=42)
         self.model.fit(X_train.drop(columns=['name', 'kickoff_time']), y_train)
 
-        predictions = self.model.predict(X_valid)
+        predictions = self.model.predict(X_valid.drop(columns=['name', 'kickoff_time']))
         mse = mean_squared_error(y_valid, predictions)
         mae = mean_absolute_error(y_valid, predictions)
 
@@ -61,3 +61,12 @@ class rf_model():
         """
         self.model = joblib.load(file_name)
         print(f'Model loaded from {file_name}')
+
+    def add_predictions_to_daata(self, X):
+        """
+        Generates the predictions and adds it to the Expected points column
+            ['xP'] as the predictions
+        """
+        preds = self.predict(X)
+        X['xP'] = preds
+        return X 
