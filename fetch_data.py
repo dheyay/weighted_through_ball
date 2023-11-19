@@ -117,25 +117,36 @@ def get_future_gameweeks(player_data, fixture_data, num_gameweeks=1):
     futr_fxtr = fixture_data[fixture_data['kickoff_time'] > current_time]
 
     # TODO error handling if gameweek range does not exist
-    next_gameweeks = sorted(futr_fxtr['event'].unique())[:num_gameweeks]
-    nxt_gw_fxtr = futr_fxtr[futr_fxtr['event'].isin(next_gameweeks)]
+    # next_gameweeks = sorted(futr_fxtr['event'].unique())[:num_gameweeks]
+    # nxt_gw_fxtr = futr_fxtr[futr_fxtr['event'].isin(next_gameweeks[1:])]
+    # players_played_last_gw = player_data[(player_data['gameweek'] == nxt_gw_fxtr['event'].unique()[0] - 1) & (player_data['season'] == '2023-24')]
+    # #Duplicate players that were registered per club for the last completed gameweek
+    # #  for number of gameweeks we want
+    # fut_gw_players = []
+    # for gw in next_gameweeks:
+    #     gw_x_players = players_played_last_gw.copy()
+    #     gw_x_players['gameweek'] = gw
+    #     fut_gw_players.append(gw_x_players)
+    # players_played_last_gw = pd.concat(fut_gw_players)
 
-    players_played_last_gw = player_data[(player_data['gameweek'] == nxt_gw_fxtr['event'].unique()[0] - 2) & (player_data['season'] == '2023-24')]
 
-    # Duplicate players that were registered per club for the last completed gameweek
-    #   for number of gameweeks we want
+    ## TESTING WHEN GAMEWEEK GOING ON
+    ##  Add 1 to num_gameweeks, select 2nd gameweek (i.e, if cur gameweek is 11, select 12 for testing)
+    next_gameweeks = sorted(futr_fxtr['event'].unique())[:num_gameweeks+1]
+    nxt_gw_fxtr = futr_fxtr[futr_fxtr['event'] == next_gameweeks[1]]
+    players_played_last_gw = player_data[(player_data['gameweek'] == nxt_gw_fxtr['event'].unique()[0] - 3) & (player_data['season'] == '2023-24')]
     fut_gw_players = []
-    for gw in next_gameweeks:
+    for gw in [next_gameweeks[1]]:
+        print(gw)
         gw_x_players = players_played_last_gw.copy()
         gw_x_players['gameweek'] = gw
         fut_gw_players.append(gw_x_players)
-
     players_played_last_gw = pd.concat(fut_gw_players)
 
     # Edit last gw's data to future gameweeks's data
     drop_cols = ['difficulty', 'opponent_difficulty', 'opponent_team_name', 'opponent_team', 'kickoff_time']
     players_played_last_gw.drop(columns=drop_cols, inplace=True)
-    players_played_last_gw['minutes'] = players_played_last_gw['minutes'].apply(lambda x: 60 if x <= 60 else 90)
+    players_played_last_gw['minutes'] = players_played_last_gw['minutes'].apply(lambda x: 60 if x <= 30 else 90)
     next_gw = players_played_last_gw.merge(nxt_gw_fxtr[['event', 'team_name', 'id', 'kickoff_time', 'opponent', 'difficulty', 'opponent_difficulty', 'opponent_name']],
                                                 left_on=['team', 'gameweek'],
                                                 right_on=['team_name', 'event'],

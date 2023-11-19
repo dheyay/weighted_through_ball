@@ -63,16 +63,11 @@ def encode_positions(df):
     return pd.get_dummies(df, columns=['position'])
 
 def encode_teams(df):
-    """Change categorical variable of team and opponent team to encoding feature"""
-    vectorizer = CountVectorizer()
-    team_matrix = vectorizer.fit_transform(df['team'])
-    opponent_team_matrix = vectorizer.fit_transform(df['opponent_team_name'])
-
-    team_df = pd.DataFrame(team_matrix.toarray(), columns=vectorizer.get_feature_names_out())
-    opponent_team_df = pd.DataFrame(opponent_team_matrix.toarray(), columns=vectorizer.get_feature_names_out())
-
-    team_df = team_df.add_prefix('team_')
-    opponent_team_df = opponent_team_df.add_prefix('opponent_team_')
-    df = pd.concat([df, team_df, opponent_team_df], axis=1)
-
+    """Change categorical variable of team and opponent team to encoding feature with full names."""
+    df['team_encoded'] = df['team'].str.replace(' ', '_', regex=False)
+    df['opponent_team_encoded'] = df['opponent_team_name'].str.replace(' ', '_', regex=False)
+    team_dummies = pd.get_dummies(df['team_encoded']).add_prefix('team_')
+    opponent_team_dummies = pd.get_dummies(df['opponent_team_encoded']).add_prefix('opponent_team_')
+    df = df.drop(['team', 'opponent_team_name', 'team_encoded', 'opponent_team_encoded'], axis=1)
+    df = pd.concat([df, team_dummies, opponent_team_dummies], axis=1)
     return df
