@@ -21,7 +21,7 @@ def generate_difficulty_feature(df):
 
 def get_avg_ppg(df):
     """Generate a feature showcasing player average point per game for the season upto current gameweek"""
-    df['total_points_upto_gw'] = df.groupby(['name', 'season'])['total_points'].apply(pd.Series.cumsum)
+    df['total_points_upto_gw'] = df.groupby(['name', 'season'])['total_points'].apply(pd.Series.cumsum).reset_index(drop=True)
     df['total_points_upto_gw'] = df['total_points_upto_gw'] - df['total_points']
     df['avg_points_upto_gw'] = df.apply(lambda row: row['total_points_upto_gw'] / (row['gameweek'] - 1) 
                                         if row['gameweek'] > 1 else row['total_points'], axis=1)
@@ -33,7 +33,7 @@ def get_rolling_avg_mins(df, windows=[1, 2, 3, 4, 5]):
     df = df.sort_values(by=['name', 'season', 'gameweek'])
     for window in windows:
         df[f'avg_minutes_last_{window}'] = df.groupby('name')['minutes'].apply(
-            lambda x: x.shift(1).rolling(window=window, min_periods=1).mean())
+            lambda x: x.shift(1).rolling(window=window, min_periods=1).mean()).reset_index(drop=True)
     return df
 
 
@@ -42,7 +42,7 @@ def generate_rolling_form(df, form_over=[3,5,10]):
     df = df.sort_values(by=['name', 'season', 'gameweek'])
     # Calculate the rolling average points over the last 3 matches for each player, excluding the current gameweek
     for window in form_over:
-        df[f'avg_points_last_{window}'] = df.groupby('name')['total_points'].apply(lambda x: x.shift(1).rolling(window=window, min_periods=1).mean())
+        df[f'avg_points_last_{window}'] = df.groupby('name')['total_points'].apply(lambda x: x.shift(1).rolling(window=window, min_periods=1).mean()).reset_index(drop=True)
     return df
 
 def generate_rolling_ict(df, features=['influence', 'creativity', 'threat'], window=3):
@@ -54,7 +54,7 @@ def generate_rolling_ict(df, features=['influence', 'creativity', 'threat'], win
         # Ensure no season overlap
         df[col + f'_avg_last_{window}_games'] = df.groupby(['name', 'season'])[col].apply(
             lambda group: group.rolling(window=window, min_periods=1).mean().shift()
-        )
+        ).reset_index(drop=True)
 
     df.fillna(0, inplace=True)    
     return df
